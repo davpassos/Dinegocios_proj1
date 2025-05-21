@@ -2,9 +2,116 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
-  <title>Teste Deploy</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pesquisa de Mercado</title>
+  <style>
+    /* Estiliza a página para parecer profissional */
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    form {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    label {
+      display: block;
+      margin: 10px 0 5px;
+      font-weight: bold;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      margin-bottom: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      box-sizing: border-box;
+    }
+    button {
+      background-color: #28a745;
+      color: white;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      display: block;
+      margin: 0 auto;
+    }
+    button:hover {
+      background-color: #218838;
+    }
+  </style>
 </head>
 <body>
-  <h1>Teste de Deploy Público</h1>
+  <h1>Pesquisa de Mercado</h1>
+  <form id="surveyForm">
+    <!-- Pergunta sobre faixa etária -->
+    <label for="idade">Qual é sua faixa etária?</label>
+    <select id="idade" name="idade" required>
+      <option value="">Selecione</option>
+      <option value="18-24">18-24 anos</option>
+      <option value="25-34">25-34 anos</option>
+      <option value="35-44">35-44 anos</option>
+      <option value="45+">45+ anos</option>
+    </select>
+
+    <!-- Pergunta sobre frequência de uso -->
+    <label for="frequencia">Quantas vezes por mês você usa ferramentas digitais (ex.: apps de compras, cursos online)?</label>
+    <input type="number" id="frequencia" name="frequencia" min="0" required>
+
+    <!-- Pergunta qualitativa -->
+    <label for="motivacao">O que te motiva a usar uma ferramenta digital? (ex.: facilidade, preço, funcionalidades)</label>
+    <input type="text" id="motivacao" name="motivacao" required>
+
+    <button type="submit">Enviar Resposta</button>
+  </form>
+
+  <script>
+    // Captura o formulário
+    const form = document.getElementById('surveyForm');
+
+    // Adiciona um evento quando o formulário é enviado
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); // Impede o recarregamento da página
+
+      // Coleta os dados do formulário
+      const data = {
+        idade: form.idade.value,
+        frequencia: parseInt(form.frequencia.value),
+        motivacao: form.motivacao.value
+      };
+
+      try {
+        // Envia os dados para a API JSONBin
+        const response = await fetch('https://api.jsonbin.io/v3/b', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Master-Key': '$2a$10$YOUR_API_KEY_HERE' // Peça ao chefe a chave da API
+          },
+          body: JSON.stringify(data)
+        });
+
+        // Verifica se a resposta foi enviada com sucesso
+        if (response.ok) {
+          alert('Resposta enviada com sucesso! Obrigado por participar.');
+          form.reset(); // Limpa o formulário
+        } else {
+          alert('Erro ao enviar a resposta. Tente novamente.');
+        }
+      } catch (error) {
+        alert('Erro de conexão. Verifique sua internet e tente novamente.');
+      }
+    });
+  </script>
 </body>
 </html>
