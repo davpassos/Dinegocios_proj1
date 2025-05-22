@@ -3,115 +3,433 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pesquisa de Mercado</title>
+  <title>Análise de Ações</title>
+  <!-- Bootstrap para design responsivo -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Chart.js para gráficos candlestick -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.0/dist/chartjs-chart-financial.min.js"></script>
+  <!-- i18next para suporte bilíngue -->
+  <script src="https://cdn.jsdelivr.net/npm/i18next@23.11.5/dist/umd/i18next.min.js"></script>
   <style>
-    /* Estiliza a página para parecer profissional */
     body {
       font-family: Arial, sans-serif;
-      max-width: 600px;
-      margin: 20px auto;
-      padding: 20px;
       background-color: #f4f4f4;
-    }
-    h1 {
-      text-align: center;
-      color: #333;
-    }
-    form {
-      background: white;
       padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
-    label {
-      display: block;
-      margin: 10px 0 5px;
-      font-weight: bold;
-    }
-    input, select {
-      width: 100%;
-      padding: 8px;
-      margin-bottom: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      box-sizing: border-box;
-    }
-    button {
-      background-color: #28a745;
-      color: white;
-      padding: 10px 20px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      display: block;
+    .container {
+      max-width: 900px;
       margin: 0 auto;
     }
-    button:hover {
-      background-color: #218838;
+    #chart {
+      max-height: 400px;
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #007bff;
+      color: white;
+    }
+    .autocomplete-suggestions {
+      border: 1px solid #ccc;
+      max-height: 150px;
+      overflow-y: auto;
+      position: absolute;
+      background: white;
+      width: 100%;
+      z-index: 1000;
+    }
+    .autocomplete-suggestion {
+      padding: 8px;
+      cursor: pointer;
+    }
+    .autocomplete-suggestion:hover {
+      background-color: #f0f0f0;
+    }
+    #historyList {
+      margin-top: 20px;
+    }
+    .history-item {
+      padding: 10px;
+      border-bottom: 1px solid #ddd;
+      cursor: pointer;
+    }
+    .history-item:hover {
+      background-color: #f0f0f0;
     }
   </style>
 </head>
 <body>
-  <h1>Pesquisa de Mercado</h1>
-  <form id="surveyForm">
-    <!-- Pergunta sobre faixa etária -->
-    <label for="idade">Qual é sua faixa etária?</label>
-    <select id="idade" name="idade" required>
-      <option value="">Selecione</option>
-      <option value="18-24">18-24 anos</option>
-      <option value="25-34">25-34 anos</option>
-      <option value="35-44">35-44 anos</option>
-      <option value="45+">45+ anos</option>
-    </select>
-
-    <!-- Pergunta sobre frequência de uso -->
-    <label for="frequencia">Quantas vezes por mês você usa ferramentas digitais (ex.: apps de compras, cursos online)?</label>
-    <input type="number" id="frequencia" name="frequencia" min="0" required>
-
-    <!-- Pergunta qualitativa -->
-    <label for="motivacao">O que te motiva a usar uma ferramenta digital? (ex.: facilidade, preço, funcionalidades)</label>
-    <input type="text" id="motivacao" name="motivacao" required>
-
-    <button type="submit">Enviar Resposta</button>
-  </form>
+  <div class="container">
+    <!-- Seletor de idioma -->
+    <div class="mb-3">
+      <label for="languageSelector" class="form-label" data-i18n="language">Idioma</label>
+      <select id="languageSelector" class="form-select">
+        <option value="pt">Português</option>
+        <option value="en">English</option>
+      </select>
+    </div>
+    <h1 class="text-center mb-4" data-i18n="title">Análise de Ações</h1>
+    <!-- Seletor de ativos -->
+    <div class="mb-3">
+      <label for="stockSelector" class="form-label" data-i18n="selectStock">Selecione uma Ação</label>
+      <input type="text" class="form-control" id="stockSelector" placeholder="Digite o símbolo (ex.: PETR4.SA, AAPL)" data-i18n="[placeholder]selectStockPlaceholder">
+      <div id="autocompleteList" class="autocomplete-suggestions" style="display: none;"></div>
+    </div>
+    <!-- Formulário para classificações -->
+    <div class="mb-3">
+      <label for="investingRating" class="form-label" data-i18n="investingRating">Classificação Investing.com</label>
+      <select id="investingRating" class="form-select">
+        <option value="Venda Forte">Venda Forte</option>
+        <option value="Venda">Venda</option>
+        <option value="Neutro">Neutro</option>
+        <option value="Compra">Compra</option>
+        <option value="Compra Forte">Compra Forte</option>
+      </select>
+      <label for="tradingviewRating" class="form-label" data-i18n="tradingviewRating">Classificação TradingView</label>
+      <select id="tradingviewRating" class="form-select">
+        <option value="Venda Forte">Venda Forte</option>
+        <option value="Venda">Venda</option>
+        <option value="Neutro">Neutro</option>
+        <option value="Compra">Compra</option>
+        <option value="Compra Forte">Compra Forte</option>
+      </select>
+      <button id="saveResearch" class="btn btn-primary mt-2" data-i18n="saveResearch">Salvar Pesquisa</button>
+    </div>
+    <!-- Gráfico -->
+    <canvas id="chart"></canvas>
+    <!-- Tabela -->
+    <table id="stockTable" class="table table-bordered">
+      <thead>
+        <tr>
+          <th data-i18n="investingRating">Classificação 1 (Investing.com)</th>
+          <th data-i18n="tradingviewRating">Classificação 2 (TradingView)</th>
+          <th data-i18n="sector">Setor</th>
+          <th data-i18n="rsi">RSI (Semanal)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td colspan="4" class="text-center" data-i18n="selectStockPrompt">Selecione uma ação para ver os dados</td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- Histórico de pesquisas -->
+    <h3 data-i18n="history">Histórico de Pesquisas</h3>
+    <div id="historyList"></div>
+  </div>
 
   <script>
-    // Captura o formulário
-    const form = document.getElementById('surveyForm');
+    // Configurações das APIs
+    const FMP_API_KEY = 'EXJdqaeDxTfNvCKIc73ke4Go05xGV8kn'; // Substitua pela chave fornecida por Timóteo
+    const JSONBIN_API_KEY = '$2a$10$p88YnSpYqBbUCIgqniGDTuMv0X72NBK0aLfj5I8QnsIuwksxhPhsO'; // Substitua pela chave fornecida
+    const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
+    const JSONBIN_URL = 'https://api.jsonbin.io/v3/b';
 
-    // Adiciona um evento quando o formulário é enviado
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault(); // Impede o recarregamento da página
+    // Configuração do i18next para idiomas
+    i18next.init({
+      lng: 'pt',
+      resources: {
+        pt: {
+          translation: {
+            language: 'Idioma',
+            title: 'Análise de Ações',
+            selectStock: 'Selecione uma Ação',
+            selectStockPlaceholder: 'Digite o símbolo (ex.: PETR4.SA, AAPL)',
+            investingRating: 'Classificação Investing.com',
+            tradingviewRating: 'Classificação TradingView',
+            sector: 'Setor',
+            rsi: 'RSI (Semanal)',
+            saveResearch: 'Salvar Pesquisa',
+            selectStockPrompt: 'Selecione uma ação para ver os dados',
+            history: 'Histórico de Pesquisas'
+          }
+        },
+        en: {
+          translation: {
+            language: 'Language',
+            title: 'Stock Analysis',
+            selectStock: 'Select a Stock',
+            selectStockPlaceholder: 'Enter symbol (e.g., PETR4.SA, AAPL)',
+            investingRating: 'Investing.com Rating',
+            tradingviewRating: 'TradingView Rating',
+            sector: 'Sector',
+            rsi: 'RSI (Weekly)',
+            saveResearch: 'Save Research',
+            selectStockPrompt: 'Select a stock to view data',
+            history: 'Research History'
+          }
+        }
+      }
+    }, () => {
+      updateLanguage();
+    });
 
-      // Coleta os dados do formulário
-      const data = {
-        idade: form.idade.value,
-        frequencia: parseInt(form.frequencia.value),
-        motivacao: form.motivacao.value
+    // Atualizar idioma
+    document.getElementById('languageSelector').addEventListener('change', (e) => {
+      i18next.changeLanguage(e.target.value, updateLanguage);
+    });
+
+    function updateLanguage() {
+      document.querySelectorAll('[data-i18n]').forEach(elem => {
+        const key = elem.getAttribute('data-i18n');
+        if (key.startsWith('[placeholder]')) {
+          elem.placeholder = i18next.t(key.replace('[placeholder]', ''));
+        } else {
+          elem.textContent = i18next.t(key);
+        }
+      });
+    }
+
+    // Lista de ações para autocomplete
+    const stockList = [
+      { symbol: 'PETR4.SA', name: 'Petrobras', exchange: 'B3' },
+      { symbol: 'VALE3.SA', name: 'Vale', exchange: 'B3' },
+      { symbol: 'ITUB4.SA', name: 'Itaú Unibanco', exchange: 'B3' },
+      { symbol: 'AAPL', name: 'Apple', exchange: 'NASDAQ' },
+      { symbol: 'MSFT', name: 'Microsoft', exchange: 'NASDAQ' }
+    ];
+
+    // Autocomplete
+    const stockSelector = document.getElementById('stockSelector');
+    const autocompleteList = document.getElementById('autocompleteList');
+    stockSelector.addEventListener('input', () => {
+      const query = stockSelector.value.toUpperCase();
+      autocompleteList.innerHTML = '';
+      if (query.length < 2) {
+        autocompleteList.style.display = 'none';
+        return;
+      }
+      const suggestions = stockList.filter(stock =>
+        stock.symbol.toUpperCase().includes(query) || stock.name.toUpperCase().includes(query)
+      );
+      suggestions.forEach(stock => {
+        const div = document.createElement('div');
+        div.className = 'autocomplete-suggestion';
+        div.textContent = `${stock.symbol} - ${stock.name}`;
+        div.addEventListener('click', () => {
+          stockSelector.value = stock.symbol;
+          autocompleteList.style.display = 'none';
+          fetchStockData(stock.symbol);
+        });
+        autocompleteList.appendChild(div);
+      });
+      autocompleteList.style.display = suggestions.length ? 'block' : 'none';
+    });
+
+    // Calcular EMA
+    function calculateEMA(prices, period) {
+      const k = 2 / (period + 1);
+      let ema = prices[0];
+      const emaArray = [ema];
+      for (let i = 1; i < prices.length; i++) {
+        ema = prices[i] * k + ema * (1 - k);
+        emaArray.push(ema);
+      }
+      return emaArray;
+    }
+
+    // Calcular RSI
+    function calculateRSI(closes, period = 14) {
+      let gains = 0, losses = 0;
+      for (let i = 1; i < closes.length; i++) {
+        const diff = closes[i] - closes[i - 1];
+        if (diff > 0) gains += diff;
+        else losses -= diff;
+      }
+      const avgGain = gains / period;
+      const avgLoss = losses / period;
+      const rs = avgGain / (avgLoss || 1);
+      return 100 - (100 / (1 + rs));
+    }
+
+    // Calcular Suportes, Resistências e Pivô Fibonacci (diário)
+    function calculateFibonacciLevels(highs, lows, closes) {
+      const pivot = (highs[0] + lows[0] + closes[0]) / 3;
+      const range = highs[0] - lows[0];
+      return {
+        support1: pivot - 0.382 * range,
+        support2: pivot - 0.618 * range,
+        resistance1: pivot + 0.382 * range,
+        resistance2: pivot + 0.618 * range,
+        pivot: pivot
       };
+    }
 
+    // Buscar e exibir dados
+    let currentSymbol = null;
+    async function fetchStockData(symbol) {
       try {
-        // Envia os dados para a API JSONBin
-        const response = await fetch('https://api.jsonbin.io/v3/b', {
+        currentSymbol = symbol;
+        // Buscar dados semanais (52 semanas)
+        const weeklyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=52&apikey=${FMP_API_KEY}`);
+        const weeklyData = await weeklyResponse.json();
+        if (!weeklyData.historical) throw new Error('Dados semanais não encontrados');
+
+        // Buscar dados diários (para suportes/resistências)
+        const dailyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=5&apikey=${FMP_API_KEY}`);
+        const dailyData = await dailyResponse.json();
+        if (!dailyData.historical) throw new Error('Dados diários não encontrados');
+
+        // Buscar perfil da empresa
+        const profileResponse = await fetch(`${FMP_BASE_URL}/profile/${symbol}?apikey=${FMP_API_KEY}`);
+        const profileData = await profileResponse.json();
+        if (!profileData[0]) throw new Error('Perfil da empresa não encontrado');
+
+        // Preparar dados para gráfico
+        const chartData = weeklyData.historical.map(item => ({
+          x: new Date(item.date).getTime(),
+          o: item.open,
+          h: item.high,
+          l: item.low,
+          c: item.close
+        })).reverse();
+
+        // Calcular EMAs e RSI
+        const closes = weeklyData.historical.map(item => item.close).reverse();
+        const ema7 = calculateEMA(closes, 7);
+        const ema21 = calculateEMA(closes, 21);
+        const ema50 = calculateEMA(closes, 50);
+        const rsi = calculateRSI(closes).toFixed(2);
+
+        // Calcular suportes/resistências (diário)
+        const latestDaily = dailyData.historical[0];
+        const fibLevels = calculateFibonacciLevels(
+          [latestDaily.high],
+          [latestDaily.low],
+          [latestDaily.close]
+        );
+
+        // Atualizar gráfico
+        const ctx = document.getElementById('chart').getContext('2d');
+        if (window.stockChart) window.stockChart.destroy();
+        window.stockChart = new Chart(ctx, {
+          type: 'candlestick',
+          data: {
+            datasets: [
+              { label: `${symbol} - Semanal`, data: chartData },
+              { label: 'EMA 7', data: ema7.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'blue' },
+              { label: 'EMA 21', data: ema21.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'green' },
+              { label: 'EMA 50', data: ema50.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'red' }
+            ]
+          },
+          options: {
+            scales: {
+              x: { type: 'time', time: { unit: 'week' } },
+              y: { beginAtZero: false }
+            },
+            plugins: {
+              annotation: {
+                annotations: {
+                  rsiOverbought: { type: 'line', yMin: 70, yMax: 70, borderColor: 'red', borderWidth: 1, label: { content: 'Sobrecompra (70)', enabled: true } },
+                  rsiOversold: { type: 'line', yMin: 30, yMax: 30, borderColor: 'green', borderWidth: 1, label: { content: 'Sobrevenda (30)', enabled: true } },
+                  support1: { type: 'line', yMin: fibLevels.support1, yMax: fibLevels.support1, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 1', enabled: true } },
+                  support2: { type: 'line', yMin: fibLevels.support2, yMax: fibLevels.support2, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 2', enabled: true } },
+                  resistance1: { type: 'line', yMin: fibLevels.resistance1, yMax: fibLevels.resistance1, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 1', enabled: true } },
+                  resistance2: { type: 'line', yMin: fibLevels.resistance2, yMax: fibLevels.resistance2, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 2', enabled: true } },
+                  pivot: { type: 'line', yMin: fibLevels.pivot, yMax: fibLevels.pivot, borderColor: 'black', borderWidth: 1, label: { content: 'Pivô', enabled: true } }
+                }
+              }
+            }
+          }
+        });
+
+        // Atualizar tabela
+        const tableBody = document.querySelector('#stockTable tbody');
+        tableBody.innerHTML = `
+          <tr>
+            <td>${document.getElementById('investingRating').value}</td>
+            <td>${document.getElementById('tradingviewRating').value}</td>
+            <td>${profileData[0].sector || 'Não disponível'}</td>
+            <td>${rsi} ${rsi >= 70 ? '(Sobrecompra)' : rsi <= 30 ? '(Sobrevenda)' : ''}</td>
+          </tr>
+        `;
+      } catch (error) {
+        alert(i18next.t('errorLoadingData') + `: ${error.message}`);
+        console.error(error);
+      }
+    }
+
+    // Salvar pesquisa no JSONBin
+    document.getElementById('saveResearch').addEventListener('click', async () => {
+      if (!currentSymbol) {
+        alert(i18next.t('selectStockPrompt'));
+        return;
+      }
+      const research = {
+        symbol: currentSymbol,
+        investingRating: document.getElementById('investingRating').value,
+        tradingviewRating: document.getElementById('tradingviewRating').value,
+        price: window.stockChart?.data.datasets[0].data[0].c || 0,
+        timestamp: new Date().toISOString()
+      };
+      try {
+        const response = await fetch(JSONBIN_URL, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Master-Key': '$2a$10$p88YnSpYqBbUCIgqniGDTuMv0X72NBK0aLfj5I8QnsIuwksxhPhsO' // Peça ao chefe a chave da API
+            'X-Master-Key': JSONBIN_API_KEY
           },
-          body: JSON.stringify(data)
+          body: JSON.stringify(research)
         });
-
-        // Verifica se a resposta foi enviada com sucesso
         if (response.ok) {
-          alert('Resposta enviada com sucesso! Obrigado por participar.');
-          form.reset(); // Limpa o formulário
+          alert(i18next.t('researchSaved'));
+          loadHistory();
         } else {
-          alert('Erro ao enviar a resposta. Tente novamente.');
+          alert(i18next.t('errorSaving'));
         }
       } catch (error) {
-        alert('Erro de conexão. Verifique sua internet e tente novamente.');
+        alert(i18next.t('errorConnection'));
       }
     });
+
+    // Carregar histórico
+    async function loadHistory() {
+      try {
+        const response = await fetch(`${JSONBIN_URL}/latest`, {
+          headers: { 'X-Master-Key': JSONBIN_API_KEY }
+        });
+        const data = await response.json();
+        const historyList = document.getElementById('historyList');
+        historyList.innerHTML = '';
+        // Simula múltiplos bins (em produção, use um bin com array)
+        const researches = [data.record]; // Ajustar para buscar todos os bins
+        researches.forEach((research, index) => {
+          const div = document.createElement('div');
+          div.className = 'history-item';
+          div.textContent = `${research.symbol} - ${research.timestamp} (Preço: ${research.price})`;
+          div.addEventListener('click', () => {
+            stockSelector.value = research.symbol;
+            fetchStockData(research.symbol);
+            document.getElementById('investingRating').value = research.investingRating;
+            document.getElementById('tradingviewRating').value = research.tradingviewRating;
+            comparePrice(research.price);
+          });
+          historyList.appendChild(div);
+        });
+      } catch (error) {
+        console.error('Erro ao carregar histórico:', error);
+      }
+    }
+
+    // Comparar preço
+    function comparePrice(savedPrice) {
+      const currentPrice = window.stockChart?.data.datasets[0].data[0].c || savedPrice;
+      const variation = ((currentPrice - savedPrice) / savedPrice * 100).toFixed(2);
+      alert(i18next.t('priceComparison') + `: ${variation}%`);
+    }
+
+    // Inicializar histórico
+    loadHistory();
   </script>
 </body>
 </html>
