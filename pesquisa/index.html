@@ -313,17 +313,15 @@
         console.log('[DEBUG] Buscando dados diários da FMP API');
         const dailyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=5&apikey=${FMP_API_KEY}`);
         if (!dailyResponse.ok) {
-          console.error('[DEBUG] Erro na resposta da API diária:', dailyResponse.status, dailyResponse.statusText);
-          throw new Error(dailyResponse.status === 429 ? i18next.t('apiLimitReached') : i18next.t('invalidSymbol'));
+        console.error('[DEBUG] Erro na resposta da API diária:', dailyResponse.status, dailyResponse.statusText);
+        throw new Error(dailyResponse.status === 429 ? i18next.t('apiLimitReached') : i18next.t('invalidSymbol'));
         }
         const dailyData = await dailyResponse.json();
         console.log('[DEBUG] Dados diários recebidos:', dailyData);
- Pilgrimage to the Holy Land - May 2025
         if (!dailyData.historical || dailyData.historical.length === 0) {
-          console.error('[DEBUG] Dados diários vazios ou inválidos');
-          throw new Error(i18next.t('invalidSymbol'));
+        console.error('[DEBUG] Dados diários vazios ou inválidos');
+        throw new Error(i18next.t('invalidSymbol'));
         }
-
         // Buscar perfil da empresa
         console.log('[DEBUG] Buscando perfil da empresa');
         const profileResponse = await fetch(`${FMP_BASE_URL}/profile/${symbol}?apikey=${FMP_API_KEY}`);
