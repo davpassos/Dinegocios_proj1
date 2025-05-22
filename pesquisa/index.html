@@ -232,7 +232,7 @@
       { symbol: 'MSFT', name: 'Microsoft', exchange: 'NASDAQ' }
     ];
 
-    // Autocomplete
+    // Autocomplete e integração com a API
     const stockSelector = document.getElementById('stockSelector');
     const autocompleteList = document.getElementById('autocompleteList');
     stockSelector.addEventListener('input', () => {
@@ -252,11 +252,30 @@
         div.addEventListener('click', () => {
           stockSelector.value = stock.symbol;
           autocompleteList.style.display = 'none';
-          fetchStockData(stock.symbol);
+          fetchStockData(stock.symbol); // Chama a API ao selecionar
         });
         autocompleteList.appendChild(div);
       });
       autocompleteList.style.display = suggestions.length ? 'block' : 'none';
+    });
+
+    // Adicionar evento para disparar fetchStockData ao pressionar Enter
+    stockSelector.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const symbol = stockSelector.value.trim().toUpperCase();
+        if (symbol) {
+          fetchStockData(symbol); // Chama a API com o valor digitado
+        }
+      }
+    });
+
+    // Adicionar evento para disparar fetchStockData ao perder o foco
+    stockSelector.addEventListener('blur', () => {
+      const symbol = stockSelector.value.trim().toUpperCase();
+      if (symbol && stockList.some(stock => stock.symbol === symbol)) {
+        fetchStockData(symbol); // Chama a API se o símbolo for válido
+      }
     });
 
     // Calcular EMA
