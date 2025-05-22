@@ -8,6 +8,8 @@
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Chart.js para gráficos -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- chartjs-chart-financial para gráficos de velas -->
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@1.0.0/dist/chartjs-chart-financial.min.js"></script>
   <!-- date-fns para adaptador de data -->
   <script src="https://cdn.jsdelivr.net/npm/date-fns@2.30.0/dist/date-fns.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
@@ -214,6 +216,11 @@
           elem.textContent = i18next.t(key);
         }
       });
+      // Atualizar localidade do gráfico ao mudar o idioma
+      if (stockChart) {
+        stockChart.options.scales.x.adapters.date.locale = i18next.language === 'pt' ? 'pt-BR' : 'en-US';
+        stockChart.update();
+      }
     }
 
     // Lista de ações para autocomplete
@@ -381,35 +388,6 @@
           throw new Error(i18next.t('invalidChartData'));
         }
 
-        // Validar dados do candlestick
-        chartData.forEach((item, index) => {
-          if (item.o <= 0 || item.h <= 0 || item.l <= 0 || item.c <= 0 || item.h < item.l || item.o < item.l || item.c < item.l) {
-            console.warn(`[DEBUG] Dados de candlestick inválidos na posição ${index}:`, item);
-          }
-        });
-
-        // Preparar datasets para simular candlesticks (corpo e sombras)
-        const candleBodies = [];
-        const candleWicks = [];
-        chartData.forEach(item => {
-          // Corpo do candle (open para close)
-          candleBodies.push({
-            x: item.x,
-            y: [item.o, item.c],
-            borderColor: item.o <= item.c ? 'green' : 'red',
-            borderWidth: 5
-          });
-          // Sombra do candle (low para high)
-          candleWicks.push({
-            x: item.x,
-            y: [item.l, item.h],
-            borderColor: 'black',
-            borderWidth: 1
-          });
-        });
-        console.log('[DEBUG] candleBodies preparado:', candleBodies.slice(0, 5));
-        console.log('[DEBUG] candleWicks preparado:', candleWicks.slice(0, 5));
-
         // Calcular EMAs e RSI
         console.log('[DEBUG] Calculando EMAs e RSI');
         const closes = weeklyData.historical.map(item => parseFloat(item.close)).filter(c => !isNaN(c)).reverse();
@@ -445,64 +423,42 @@
           stockChart = null;
         }
 
-        // Criar novo gráfico
+        // Criar novo gráfico com candlestick
         console.log('[DEBUG] Criando novo gráfico');
         stockChart = new Chart(ctx, {
-          type: 'line',
+          type: 'candlestick',
           data: {
-            datasets: [
-              {
-                label: `${symbol} - Corpos`,
-                data: candleBodies.map(item => ({ x: item.x, y: item.y[0] })),
-                borderColor: candleBodies.map(item => item.borderColor),
-                borderWidth: 5,
-                pointRadius: 0,
-                segment: {
-                  borderColor: ctx => ctx.p0.raw.borderColor,
-                  borderWidth: 5
-                },
-                spanGaps: false
-              },
-              {
-                label: `${symbol} - Sombras`,
-                data: candleWicks.map(item => ({ x: item.x, y: item.y[0] })),
-                borderColor: 'black',
-                borderWidth: 1,
-                pointRadius: 0,
-                segment: {
-                  borderColor: 'black',
-                  borderWidth: 1
-                },
-                spanGaps: false
-              },
-              {
-                label: 'EMA 7',
-                data: ema7.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
-                type: 'line',
-                borderColor: 'blue',
-                borderWidth: 1,
-                fill: false,
-                pointRadius: 0
-              },
-              {
-                label: 'EMA 21',
-                data: ema21.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
-                type: 'line',
-                borderColor: 'green',
-                borderWidth: 1,
-                fill: false,
-                pointRadius: 0
-              },
-              {
-                label: 'EMA 50',
-                data: ema50.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
-                type: 'line',
-                borderColor: 'red',
-                borderWidth: 1,
-                fill: false,
-                pointRadius: 0
-              }
-            ]
+            datasets: [{
+              label: symbol,
+              data: chartData,
+              borderColor: ctx => (ctx.raw.c > ctx.raw.o ? 'green' : 'red'),
+              backgroundColor: ctx => (ctx.raw.c > ctx.raw.o ? 'rgba(0, 255, 0, 0.3)' : 'rgba(255, 0, 0, 0.3)'),
+              borderWidth: 1
+            }, {
+              label: 'EMA 7',
+              data: ema7.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
+              type: 'line',
+              borderColor: 'blue',
+              borderWidth: 1,
+              fill: false,
+              pointRadius: 0
+            }, {
+              label: 'EMA 21',
+              data: ema21.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
+              type: 'line',
+              borderColor: 'green',
+              borderWidth: 1,
+              fill: false,
+              pointRadius: 0
+            }, {
+              label: 'EMA 50',
+              data: ema50.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
+              type: 'line',
+              borderColor: 'red',
+              borderWidth: 1,
+              fill: false,
+              pointRadius: 0
+            }]
           },
           options: {
             responsive: true,
@@ -617,7 +573,7 @@
         symbol: currentSymbol,
         investingRating: document.getElementById('investingRating').value,
         tradingviewRating: document.getElementById('tradingviewRating').value,
-        price: stockChart?.data.datasets[0].data[0]?.y[1] || 0,
+        price: stockChart?.data.datasets[0].data[0]?.c || 0,
         timestamp: new Date().toISOString()
       };
       try {
@@ -651,36 +607,45 @@
         const response = await fetch(`${JSONBIN_URL}/latest`, {
           headers: { 'X-Master-Key': JSONBIN_API_KEY }
         });
+        if (!response.ok) {
+          throw new Error(`Erro na requisição: ${response.status}`);
+        }
         const data = await response.json();
         console.log('[DEBUG] Histórico recebido:', data);
         const historyList = document.getElementById('historyList');
         historyList.innerHTML = '';
-        // Simula múltiplos bins (em produção, use um bin com array)
-        const researches = [data.record];
-        researches.forEach((research, index) => {
-          const div = document.createElement('div');
-          div.className = 'history-item';
-          div.textContent = `${research.symbol} - ${research.timestamp} (Preço: ${research.price})`;
-          div.addEventListener('click', () => {
-            console.log('[DEBUG] Carregando pesquisa do histórico:', research.symbol);
-            stockSelector.value = research.symbol;
-            fetchStockData(research.symbol);
-            document.getElementById('investingRating').value = research.investingRating;
-            document.getElementById('tradingviewRating').value = research.tradingviewRating;
-            comparePrice(research.price);
+        // Verificar se data.record e data.record.symbol existem
+        if (data && data.record && data.record.symbol) {
+          const researches = [data.record];
+          researches.forEach((research, index) => {
+            const div = document.createElement('div');
+            div.className = 'history-item';
+            div.textContent = `${research.symbol} - ${research.timestamp} (Preço: ${research.price})`;
+            div.addEventListener('click', () => {
+              console.log('[DEBUG] Carregando pesquisa do histórico:', research.symbol);
+              stockSelector.value = research.symbol;
+              fetchStockData(research.symbol);
+              document.getElementById('investingRating').value = research.investingRating;
+              document.getElementById('tradingviewRating').value = research.tradingviewRating;
+              comparePrice(research.price);
+            });
+            historyList.appendChild(div);
           });
-          historyList.appendChild(div);
-        });
+        } else {
+          console.warn('[DEBUG] Dados de histórico incompletos ou sem propriedade "symbol".');
+          historyList.innerHTML = '<div class="history-item">Nenhum histórico disponível</div>';
+        }
         console.log('[DEBUG] Histórico carregado com sucesso');
       } catch (error) {
         console.error('[DEBUG] Erro ao carregar histórico:', error.message);
+        document.getElementById('historyList').innerHTML = '<div class="history-item">Erro ao carregar histórico</div>';
       }
     }
 
     // Comparar preço
     function comparePrice(savedPrice) {
       console.log('[DEBUG] Comparando preços:', { savedPrice });
-      const currentPrice = stockChart?.data.datasets[0].data[0]?.y[1] || savedPrice;
+      const currentPrice = stockChart?.data.datasets[0].data[0]?.c || savedPrice;
       const variation = ((currentPrice - savedPrice) / savedPrice * 100).toFixed(2);
       alert(i18next.t('priceComparison') + `: ${variation}%`);
     }
