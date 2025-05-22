@@ -129,307 +129,325 @@
   </div>
 
   <script>
-    // Configurações das APIs
-    const FMP_API_KEY = 'EXJdqaeDxTfNvCKIc73ke4Go05xGV8kn'; // Substitua pela chave fornecida por Timóteo
-    const JSONBIN_API_KEY = '$2a$10$p88YnSpYqBbUCIgqniGDTuMv0X72NBK0aLfj5I8QnsIuwksxhPhsO'; // Substitua pela chave fornecida
-    const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
-    const JSONBIN_URL = 'https://api.jsonbin.io/v3/b';
+// Configurações das APIs
+const FMP_API_KEY = 'SUA_CHAVE_FMP_AQUI'; // Substitua pela chave fornecida por Timóteo
+const JSONBIN_API_KEY = 'SUA_CHAVE_JSONBIN_AQUI'; // Substitua pela chave fornecida
+const FMP_BASE_URL = 'https://financialmodelingprep.com/api/v3';
+const JSONBIN_URL = 'https://api.jsonbin.io/v3/b';
 
-    // Configuração do i18next para idiomas
-    i18next.init({
-      lng: 'pt',
-      resources: {
-        pt: {
-          translation: {
-            language: 'Idioma',
-            title: 'Análise de Ações',
-            selectStock: 'Selecione uma Ação',
-            selectStockPlaceholder: 'Digite o símbolo (ex.: PETR4.SA, AAPL)',
-            investingRating: 'Classificação Investing.com',
-            tradingviewRating: 'Classificação TradingView',
-            sector: 'Setor',
-            rsi: 'RSI (Semanal)',
-            saveResearch: 'Salvar Pesquisa',
-            selectStockPrompt: 'Selecione uma ação para ver os dados',
-            history: 'Histórico de Pesquisas'
-          }
+// Configuração do i18next para idiomas
+i18next.init({
+  lng: 'pt',
+  resources: {
+    pt: {
+      translation: {
+        language: 'Idioma',
+        title: 'Análise de Ações',
+        selectStock: 'Selecione uma Ação',
+        selectStockPlaceholder: 'Digite o símbolo (ex.: PETR4.SA, AAPL)',
+        investingRating: 'Classificação Investing.com',
+        tradingviewRating: 'Classificação TradingView',
+        sector: 'Setor',
+        rsi: 'RSI (Semanal)',
+        saveResearch: 'Salvar Pesquisa',
+        selectStockPrompt: 'Selecione uma ação para ver os dados',
+        history: 'Histórico de Pesquisas',
+        errorLoadingData: 'Erro ao carregar dados',
+        researchSaved: 'Pesquisa salva com sucesso',
+        errorSaving: 'Erro ao salvar pesquisa',
+        errorConnection: 'Erro de conexão',
+        priceComparison: 'Variação de preço'
+      }
+    },
+    en: {
+      translation: {
+        language: 'Language',
+        title: 'Stock Analysis',
+        selectStock: 'Select a Stock',
+        selectStockPlaceholder: 'Enter symbol (e.g., PETR4.SA, AAPL)',
+        investingRating: 'Investing.com Rating',
+        tradingviewRating: 'TradingView Rating',
+        sector: 'Sector',
+        rsi: 'RSI (Weekly)',
+        saveResearch: 'Save Research',
+        selectStockPrompt: 'Select a stock to view data',
+        history: 'Research History',
+        errorLoadingData: 'Error loading data',
+        researchSaved: 'Research saved successfully',
+        errorSaving: 'Error saving research',
+        errorConnection: 'Connection error',
+        priceComparison: 'Price variation'
+      }
+    }
+  }
+}, () => {
+  updateLanguage();
+});
+
+// Atualizar idioma
+document.getElementById('languageSelector').addEventListener('change', (e) => {
+  i18next.changeLanguage(e.target.value, updateLanguage);
+});
+
+function updateLanguage() {
+  document.querySelectorAll('[data-i18n]').forEach(elem => {
+    const key = elem.getAttribute('data-i18n');
+    if (key.startsWith('[placeholder]')) {
+      elem.placeholder = i18next.t(key.replace('[placeholder]', ''));
+    } else {
+      elem.textContent = i18next.t(key);
+    }
+  });
+}
+
+// Lista de ações para autocomplete
+const stockList = [
+  { symbol: 'PETR4.SA', name: 'Petrobras', exchange: 'B3' },
+  { symbol: 'VALE3.SA', name: 'Vale', exchange: 'B3' },
+  { symbol: 'ITUB4.SA', name: 'Itaú Unibanco', exchange: 'B3' },
+  { symbol: 'AAPL', name: 'Apple', exchange: 'NASDAQ' },
+  { symbol: 'MSFT', name: 'Microsoft', exchange: 'NASDAQ' }
+];
+
+// Autocomplete
+const stockSelector = document.getElementById('stockSelector');
+const autocompleteList = document.getElementById('autocompleteList');
+stockSelector.addEventListener('input', () => {
+  const query = stockSelector.value.toUpperCase();
+  autocompleteList.innerHTML = '';
+  if (query.length < 2) {
+    autocompleteList.style.display = 'none';
+    return;
+  }
+  const suggestions = stockList.filter(stock =>
+    stock.symbol.toUpperCase().includes(query) || stock.name.toUpperCase().includes(query)
+  );
+  suggestions.forEach(stock => {
+    const div = document.createElement('div');
+    div.className = 'autocomplete-suggestion';
+    div.textContent = `${stock.symbol} - ${stock.name}`;
+    div.addEventListener('click', () => {
+      stockSelector.value = stock.symbol;
+      autocompleteList.style.display = 'none';
+      fetchStockData(stock.symbol);
+    });
+    autocompleteList.appendChild(div);
+  });
+  autocompleteList.style.display = suggestions.length ? 'block' : 'none';
+});
+
+// Calcular EMA
+function calculateEMA(prices, period) {
+  const k = 2 / (period + 1);
+  let ema = prices[0];
+  const emaArray = [ema];
+  for (let i = 1; i < prices.length; i++) {
+    ema = prices[i] * k + ema * (1 - k);
+    emaArray.push(ema);
+  }
+  return emaArray;
+}
+
+// Calcular RSI
+function calculateRSI(closes, period = 14) {
+  let gains = 0, losses = 0;
+  for (let i = 1; i < closes.length; i++) {
+    const diff = closes[i] - closes[i - 1];
+    if (diff > 0) gains += diff;
+    else losses -= diff;
+  }
+  const avgGain = gains / period;
+  const avgLoss = losses / period;
+  const rs = avgGain / (avgLoss || 1);
+  return 100 - (100 / (1 + rs));
+}
+
+// Calcular Suportes, Resistências e Pivô Fibonacci (diário)
+function calculateFibonacciLevels(highs, lows, closes) {
+  const pivot = (highs[0] + lows[0] + closes[0]) / 3;
+  const range = highs[0] - lows[0];
+  return {
+    support1: pivot - 0.382 * range,
+    support2: pivot - 0.618 * range,
+    resistance1: pivot + 0.382 * range,
+    resistance2: pivot + 0.618 * range,
+    pivot: pivot
+  };
+}
+
+// Inicializar gráfico como null
+let stockChart = null;
+
+// Buscar e exibir dados
+let currentSymbol = null;
+async function fetchStockData(symbol) {
+  try {
+    currentSymbol = symbol;
+    // Buscar dados semanais (52 semanas)
+    const weeklyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=52&apikey=${FMP_API_KEY}`);
+    const weeklyData = await weeklyResponse.json();
+    if (!weeklyData.historical) throw new Error('Dados semanais não encontrados');
+
+    // Buscar dados diários (para suportes/resistências)
+    const dailyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=5&apikey=${FMP_API_KEY}`);
+    const dailyData = await dailyResponse.json();
+    if (!dailyData.historical) throw new Error('Dados diários não encontrados');
+
+    // Buscar perfil da empresa
+    const profileResponse = await fetch(`${FMP_BASE_URL}/profile/${symbol}?apikey=${FMP_API_KEY}`);
+    const profileData = await profileResponse.json();
+    if (!profileData[0]) throw new Error('Perfil da empresa não encontrado');
+
+    // Preparar dados para gráfico
+    const chartData = weeklyData.historical.map(item => ({
+      x: new Date(item.date).getTime(),
+      o: item.open,
+      h: item.high,
+      l: item.low,
+      c: item.close
+    })).reverse();
+
+    // Calcular EMAs e RSI
+    const closes = weeklyData.historical.map(item => item.close).reverse();
+    const ema7 = calculateEMA(closes, 7);
+    const ema21 = calculateEMA(closes, 21);
+    const ema50 = calculateEMA(closes, 50);
+    const rsi = calculateRSI(closes).toFixed(2);
+
+    // Calcular suportes/resistências (diário)
+    const latestDaily = dailyData.historical[0];
+    const fibLevels = calculateFibonacciLevels(
+      [latestDaily.high],
+      [latestDaily.low],
+      [latestDaily.close]
+    );
+
+    // Destruir gráfico anterior, se existir
+    const ctx = document.getElementById('chart').getContext('2d');
+    if (stockChart) {
+      stockChart.destroy();
+      stockChart = null; // Resetar para evitar referências inválidas
+    }
+
+    // Criar novo gráfico
+    stockChart = new Chart(ctx, {
+      type: 'candlestick',
+      data: {
+        datasets: [
+          { label: `${symbol} - Semanal`, data: chartData },
+          { label: 'EMA 7', data: ema7.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'blue' },
+          { label: 'EMA 21', data: ema21.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'green' },
+          { label: 'EMA 50', data: ema50.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'red' }
+        ]
+      },
+      options: {
+        scales: {
+          x: { type: 'time', time: { unit: 'week' } },
+          y: { beginAtZero: false }
         },
-        en: {
-          translation: {
-            language: 'Language',
-            title: 'Stock Analysis',
-            selectStock: 'Select a Stock',
-            selectStockPlaceholder: 'Enter symbol (e.g., PETR4.SA, AAPL)',
-            investingRating: 'Investing.com Rating',
-            tradingviewRating: 'TradingView Rating',
-            sector: 'Sector',
-            rsi: 'RSI (Weekly)',
-            saveResearch: 'Save Research',
-            selectStockPrompt: 'Select a stock to view data',
-            history: 'Research History'
-          }
-        }
-      }
-    }, () => {
-      updateLanguage();
-    });
-
-    // Atualizar idioma
-    document.getElementById('languageSelector').addEventListener('change', (e) => {
-      i18next.changeLanguage(e.target.value, updateLanguage);
-    });
-
-    function updateLanguage() {
-      document.querySelectorAll('[data-i18n]').forEach(elem => {
-        const key = elem.getAttribute('data-i18n');
-        if (key.startsWith('[placeholder]')) {
-          elem.placeholder = i18next.t(key.replace('[placeholder]', ''));
-        } else {
-          elem.textContent = i18next.t(key);
-        }
-      });
-    }
-
-    // Lista de ações para autocomplete
-    const stockList = [
-      { symbol: 'PETR4.SA', name: 'Petrobras', exchange: 'B3' },
-      { symbol: 'VALE3.SA', name: 'Vale', exchange: 'B3' },
-      { symbol: 'ITUB4.SA', name: 'Itaú Unibanco', exchange: 'B3' },
-      { symbol: 'AAPL', name: 'Apple', exchange: 'NASDAQ' },
-      { symbol: 'MSFT', name: 'Microsoft', exchange: 'NASDAQ' }
-    ];
-
-    // Autocomplete
-    const stockSelector = document.getElementById('stockSelector');
-    const autocompleteList = document.getElementById('autocompleteList');
-    stockSelector.addEventListener('input', () => {
-      const query = stockSelector.value.toUpperCase();
-      autocompleteList.innerHTML = '';
-      if (query.length < 2) {
-        autocompleteList.style.display = 'none';
-        return;
-      }
-      const suggestions = stockList.filter(stock =>
-        stock.symbol.toUpperCase().includes(query) || stock.name.toUpperCase().includes(query)
-      );
-      suggestions.forEach(stock => {
-        const div = document.createElement('div');
-        div.className = 'autocomplete-suggestion';
-        div.textContent = `${stock.symbol} - ${stock.name}`;
-        div.addEventListener('click', () => {
-          stockSelector.value = stock.symbol;
-          autocompleteList.style.display = 'none';
-          fetchStockData(stock.symbol);
-        });
-        autocompleteList.appendChild(div);
-      });
-      autocompleteList.style.display = suggestions.length ? 'block' : 'none';
-    });
-
-    // Calcular EMA
-    function calculateEMA(prices, period) {
-      const k = 2 / (period + 1);
-      let ema = prices[0];
-      const emaArray = [ema];
-      for (let i = 1; i < prices.length; i++) {
-        ema = prices[i] * k + ema * (1 - k);
-        emaArray.push(ema);
-      }
-      return emaArray;
-    }
-
-    // Calcular RSI
-    function calculateRSI(closes, period = 14) {
-      let gains = 0, losses = 0;
-      for (let i = 1; i < closes.length; i++) {
-        const diff = closes[i] - closes[i - 1];
-        if (diff > 0) gains += diff;
-        else losses -= diff;
-      }
-      const avgGain = gains / period;
-      const avgLoss = losses / period;
-      const rs = avgGain / (avgLoss || 1);
-      return 100 - (100 / (1 + rs));
-    }
-
-    // Calcular Suportes, Resistências e Pivô Fibonacci (diário)
-    function calculateFibonacciLevels(highs, lows, closes) {
-      const pivot = (highs[0] + lows[0] + closes[0]) / 3;
-      const range = highs[0] - lows[0];
-      return {
-        support1: pivot - 0.382 * range,
-        support2: pivot - 0.618 * range,
-        resistance1: pivot + 0.382 * range,
-        resistance2: pivot + 0.618 * range,
-        pivot: pivot
-      };
-    }
-
-    // Buscar e exibir dados
-    let currentSymbol = null;
-    async function fetchStockData(symbol) {
-      try {
-        currentSymbol = symbol;
-        // Buscar dados semanais (52 semanas)
-        const weeklyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=52&apikey=${FMP_API_KEY}`);
-        const weeklyData = await weeklyResponse.json();
-        if (!weeklyData.historical) throw new Error('Dados semanais não encontrados');
-
-        // Buscar dados diários (para suportes/resistências)
-        const dailyResponse = await fetch(`${FMP_BASE_URL}/historical-price-full/${symbol}?timeseries=5&apikey=${FMP_API_KEY}`);
-        const dailyData = await dailyResponse.json();
-        if (!dailyData.historical) throw new Error('Dados diários não encontrados');
-
-        // Buscar perfil da empresa
-        const profileResponse = await fetch(`${FMP_BASE_URL}/profile/${symbol}?apikey=${FMP_API_KEY}`);
-        const profileData = await profileResponse.json();
-        if (!profileData[0]) throw new Error('Perfil da empresa não encontrado');
-
-        // Preparar dados para gráfico
-        const chartData = weeklyData.historical.map(item => ({
-          x: new Date(item.date).getTime(),
-          o: item.open,
-          h: item.high,
-          l: item.low,
-          c: item.close
-        })).reverse();
-
-        // Calcular EMAs e RSI
-        const closes = weeklyData.historical.map(item => item.close).reverse();
-        const ema7 = calculateEMA(closes, 7);
-        const ema21 = calculateEMA(closes, 21);
-        const ema50 = calculateEMA(closes, 50);
-        const rsi = calculateRSI(closes).toFixed(2);
-
-        // Calcular suportes/resistências (diário)
-        const latestDaily = dailyData.historical[0];
-        const fibLevels = calculateFibonacciLevels(
-          [latestDaily.high],
-          [latestDaily.low],
-          [latestDaily.close]
-        );
-
-        // Atualizar gráfico
-        const ctx = document.getElementById('chart').getContext('2d');
-        if (window.stockChart) window.stockChart.destroy();
-        window.stockChart = new Chart(ctx, {
-          type: 'candlestick',
-          data: {
-            datasets: [
-              { label: `${symbol} - Semanal`, data: chartData },
-              { label: 'EMA 7', data: ema7.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'blue' },
-              { label: 'EMA 21', data: ema21.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'green' },
-              { label: 'EMA 50', data: ema50.map((y, i) => ({ x: chartData[i].x, y })), type: 'line', borderColor: 'red' }
-            ]
-          },
-          options: {
-            scales: {
-              x: { type: 'time', time: { unit: 'week' } },
-              y: { beginAtZero: false }
-            },
-            plugins: {
-              annotation: {
-                annotations: {
-                  rsiOverbought: { type: 'line', yMin: 70, yMax: 70, borderColor: 'red', borderWidth: 1, label: { content: 'Sobrecompra (70)', enabled: true } },
-                  rsiOversold: { type: 'line', yMin: 30, yMax: 30, borderColor: 'green', borderWidth: 1, label: { content: 'Sobrevenda (30)', enabled: true } },
-                  support1: { type: 'line', yMin: fibLevels.support1, yMax: fibLevels.support1, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 1', enabled: true } },
-                  support2: { type: 'line', yMin: fibLevels.support2, yMax: fibLevels.support2, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 2', enabled: true } },
-                  resistance1: { type: 'line', yMin: fibLevels.resistance1, yMax: fibLevels.resistance1, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 1', enabled: true } },
-                  resistance2: { type: 'line', yMin: fibLevels.resistance2, yMax: fibLevels.resistance2, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 2', enabled: true } },
-                  pivot: { type: 'line', yMin: fibLevels.pivot, yMax: fibLevels.pivot, borderColor: 'black', borderWidth: 1, label: { content: 'Pivô', enabled: true } }
-                }
-              }
+        plugins: {
+          annotation: {
+            annotations: {
+              rsiOverbought: { type: 'line', yMin: 70, yMax: 70, borderColor: 'red', borderWidth: 1, label: { content: 'Sobrecompra (70)', enabled: true } },
+              rsiOversold: { type: 'line', yMin: 30, yMax: 30, borderColor: 'green', borderWidth: 1, label: { content: 'Sobrevenda (30)', enabled: true } },
+              support1: { type: 'line', yMin: fibLevels.support1, yMax: fibLevels.support1, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 1', enabled: true } },
+              support2: { type: 'line', yMin: fibLevels.support2, yMax: fibLevels.support2, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 2', enabled: true } },
+              resistance1: { type: 'line', yMin: fibLevels.resistance1, yMax: fibLevels.resistance1, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 1', enabled: true } },
+              resistance2: { type: 'line', yMin: fibLevels.resistance2, yMax: fibLevels.resistance2, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 2', enabled: true } },
+              pivot: { type: 'line', yMin: fibLevels.pivot, yMax: fibLevels.pivot, borderColor: 'black', borderWidth: 1, label: { content: 'Pivô', enabled: true } }
             }
           }
-        });
-
-        // Atualizar tabela
-        const tableBody = document.querySelector('#stockTable tbody');
-        tableBody.innerHTML = `
-          <tr>
-            <td>${document.getElementById('investingRating').value}</td>
-            <td>${document.getElementById('tradingviewRating').value}</td>
-            <td>${profileData[0].sector || 'Não disponível'}</td>
-            <td>${rsi} ${rsi >= 70 ? '(Sobrecompra)' : rsi <= 30 ? '(Sobrevenda)' : ''}</td>
-          </tr>
-        `;
-      } catch (error) {
-        alert(i18next.t('errorLoadingData') + `: ${error.message}`);
-        console.error(error);
-      }
-    }
-
-    // Salvar pesquisa no JSONBin
-    document.getElementById('saveResearch').addEventListener('click', async () => {
-      if (!currentSymbol) {
-        alert(i18next.t('selectStockPrompt'));
-        return;
-      }
-      const research = {
-        symbol: currentSymbol,
-        investingRating: document.getElementById('investingRating').value,
-        tradingviewRating: document.getElementById('tradingviewRating').value,
-        price: window.stockChart?.data.datasets[0].data[0].c || 0,
-        timestamp: new Date().toISOString()
-      };
-      try {
-        const response = await fetch(JSONBIN_URL, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Master-Key': JSONBIN_API_KEY
-          },
-          body: JSON.stringify(research)
-        });
-        if (response.ok) {
-          alert(i18next.t('researchSaved'));
-          loadHistory();
-        } else {
-          alert(i18next.t('errorSaving'));
         }
-      } catch (error) {
-        alert(i18next.t('errorConnection'));
       }
     });
 
-    // Carregar histórico
-    async function loadHistory() {
-      try {
-        const response = await fetch(`${JSONBIN_URL}/latest`, {
-          headers: { 'X-Master-Key': JSONBIN_API_KEY }
-        });
-        const data = await response.json();
-        const historyList = document.getElementById('historyList');
-        historyList.innerHTML = '';
-        // Simula múltiplos bins (em produção, use um bin com array)
-        const researches = [data.record]; // Ajustar para buscar todos os bins
-        researches.forEach((research, index) => {
-          const div = document.createElement('div');
-          div.className = 'history-item';
-          div.textContent = `${research.symbol} - ${research.timestamp} (Preço: ${research.price})`;
-          div.addEventListener('click', () => {
-            stockSelector.value = research.symbol;
-            fetchStockData(research.symbol);
-            document.getElementById('investingRating').value = research.investingRating;
-            document.getElementById('tradingviewRating').value = research.tradingviewRating;
-            comparePrice(research.price);
-          });
-          historyList.appendChild(div);
-        });
-      } catch (error) {
-        console.error('Erro ao carregar histórico:', error);
-      }
-    }
+    // Atualizar tabela
+    const tableBody = document.querySelector('#stockTable tbody');
+    tableBody.innerHTML = `
+      <tr>
+        <td>${document.getElementById('investingRating').value}</td>
+        <td>${document.getElementById('tradingviewRating').value}</td>
+        <td>${profileData[0].sector || 'Não disponível'}</td>
+        <td>${rsi} ${rsi >= 70 ? '(Sobrecompra)' : rsi <= 30 ? '(Sobrevenda)' : ''}</td>
+      </tr>
+    `;
+  } catch (error) {
+    alert(`${i18next.t('errorLoadingData')}: ${error.message}`);
+    console.error(error);
+  }
+}
 
-    // Comparar preço
-    function comparePrice(savedPrice) {
-      const currentPrice = window.stockChart?.data.datasets[0].data[0].c || savedPrice;
-      const variation = ((currentPrice - savedPrice) / savedPrice * 100).toFixed(2);
-      alert(i18next.t('priceComparison') + `: ${variation}%`);
+// Salvar pesquisa no JSONBin
+document.getElementById('saveResearch').addEventListener('click', async () => {
+  if (!currentSymbol) {
+    alert(i18next.t('selectStockPrompt'));
+    return;
+  }
+  const research = {
+    symbol: currentSymbol,
+    investingRating: document.getElementById('investingRating').value,
+    tradingviewRating: document.getElementById('tradingviewRating').value,
+    price: stockChart?.data.datasets[0].data[0].c || 0,
+    timestamp: new Date().toISOString()
+  };
+  try {
+    const response = await fetch(JSONBIN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Master-Key': JSONBIN_API_KEY
+      },
+      body: JSON.stringify(research)
+    });
+    if (response.ok) {
+      alert(i18next.t('researchSaved'));
+      loadHistory();
+    } else {
+      alert(i18next.t('errorSaving'));
     }
+  } catch (error) {
+    alert(i18next.t('errorConnection'));
+  }
+});
 
-    // Inicializar histórico
-    loadHistory();
-  </script>
+// Carregar histórico
+async function loadHistory() {
+  try {
+    const response = await fetch(`${JSONBIN_URL}/latest`, {
+      headers: { 'X-Master-Key': JSONBIN_API_KEY }
+    });
+    const data = await response.json();
+    const historyList = document.getElementById('historyList');
+    historyList.innerHTML = '';
+    // Simula múltiplos bins (em produção, use um bin com array)
+    const researches = [data.record];
+    researches.forEach((research, index) => {
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      div.textContent = `${research.symbol} - ${research.timestamp} (Preço: ${research.price})`;
+      div.addEventListener('click', () => {
+        stockSelector.value = research.symbol;
+        fetchStockData(research.symbol);
+        document.getElementById('investingRating').value = research.investingRating;
+        document.getElementById('tradingviewRating').value = research.tradingviewRating;
+        comparePrice(research.price);
+      });
+      historyList.appendChild(div);
+    });
+  } catch (error) {
+    console.error('Erro ao carregar histórico:', error);
+  }
+}
+
+// Comparar preço
+function comparePrice(savedPrice) {
+  const currentPrice = stockChart?.data.datasets[0].data[0].c || savedPrice;
+  const variation = ((currentPrice - savedPrice) / savedPrice * 100).toFixed(2);
+  alert(i18next.t('priceComparison') + `: ${variation}%`);
+}
+
+// Inicializar histórico
+loadHistory();
+</script>
 </body>
 </html>
