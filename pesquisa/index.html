@@ -26,7 +26,13 @@
     }
     #chart {
       max-height: 400px;
+      width: 100%;
       margin-bottom: 20px;
+    }
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
     }
     table {
       width: 100%;
@@ -109,7 +115,9 @@
       <button id="saveResearch" class="btn btn-primary mt-2" data-i18n="saveResearch">Salvar Pesquisa</button>
     </div>
     <!-- Gráfico -->
-    <canvas id="chart"></canvas>
+    <div class="chart-container">
+      <canvas id="chart"></canvas>
+    </div>
     <!-- Tabela -->
     <table id="stockTable" class="table table-bordered">
       <thead>
@@ -161,7 +169,8 @@
             errorConnection: 'Erro de conexão',
             priceComparison: 'Variação de preço',
             invalidSymbol: 'Símbolo inválido ou dados não encontrados',
-            apiLimitReached: 'Limite de requisições da API atingido'
+            apiLimitReached: 'Limite de requisições da API atingido',
+            invalidChartData: 'Dados do gráfico inválidos ou incompletos'
           }
         },
         en: {
@@ -183,7 +192,8 @@
             errorConnection: 'Connection error',
             priceComparison: 'Price variation',
             invalidSymbol: 'Invalid symbol or data not found',
-            apiLimitReached: 'API request limit reached'
+            apiLimitReached: 'API request limit reached',
+            invalidChartData: 'Invalid or incomplete chart data'
           }
         }
       }
@@ -245,7 +255,10 @@
 
     // Calcular EMA
     function calculateEMA(prices, period) {
-      if (!prices || prices.length < period) return [];
+      if (!prices || prices.length < period) {
+        console.warn('[DEBUG] Dados insuficientes para EMA:', prices?.length, 'período:', period);
+        return [];
+      }
       const k = 2 / (period + 1);
       let ema = prices[0];
       const emaArray = [ema];
@@ -258,7 +271,10 @@
 
     // Calcular RSI
     function calculateRSI(closes, period = 14) {
-      if (!closes || closes.length < period) return 0;
+      if (!closes || closes.length < period) {
+        console.warn('[DEBUG] Dados insuficientes para RSI:', closes?.length);
+        return 0;
+      }
       let gains = 0, losses = 0;
       for (let i = 1; i < closes.length; i++) {
         const diff = closes[i] - closes[i - 1];
@@ -273,7 +289,10 @@
 
     // Calcular Suportes, Resistências e Pivô Fibonacci (diário)
     function calculateFibonacciLevels(highs, lows, closes) {
-      if (!highs || !lows || !closes) return { support1: 0, support2: 0, resistance1: 0, resistance2: 0, pivot: 0 };
+      if (!highs || !lows || !closes || highs.length === 0 || lows.length === 0 || closes.length === 0) {
+        console.warn('[DEBUG] Dados insuficientes para Fibonacci:', { highs, lows, closes });
+        return { support1: 0, support2: 0, resistance1: 0, resistance2: 0, pivot: 0 };
+      }
       const pivot = (highs[0] + lows[0] + closes[0]) / 3;
       const range = highs[0] - lows[0];
       return {
@@ -339,29 +358,40 @@
 
         // Preparar dados para gráfico
         console.log('[DEBUG] Preparando dados do gráfico');
-        const chartData = weeklyData.historical.map(item => {
-          if (!item.date || !item.open || !item.high || !item.low || !item.close) {
-            console.error('[DEBUG] Dados históricos inválidos:', item);
-            throw new Error('Dados históricos incompletos');
+        const chartData = weeklyData.historical.map((item, index) => {
+          if (!item.date || isNaN(item.open) || isNaN(item.high) || isNaN(item.low) || isNaN(item.close)) {
+            console.warn(`[DEBUG] Dados históricos inválidos na posição ${index}:`, item);
+            return null;
           }
           const date = new Date(item.date);
           if (isNaN(date.getTime())) {
-            console.error('[DEBUG] Data inválida:', item.date);
-            throw new Error('Formato de data inválido');
+            console.warn(`[DEBUG] Data inválida na posição ${index}:`, item.date);
+            return null;
           }
           return {
             x: date,
-            o: item.open,
-            h: item.high,
-            l: item.low,
-            c: item.close
+            o: parseFloat(item.open),
+            h: parseFloat(item.high),
+            l: parseFloat(item.low),
+            c: parseFloat(item.close)
           };
-        }).reverse();
+        }).filter(item => item !== null).reverse();
         console.log('[DEBUG] chartData preparado:', chartData);
+        if (chartData.length === 0) {
+          console.error('[DEBUG] Nenhum dado válido para o gráfico');
+          throw new Error(i18next.t('invalidChartData'));
+        }
+
+        // Validar dados do candlestick
+        chartData.forEach((item, index) => {
+          if (item.o <= 0 || item.h <= 0 || item.l <= 0 || item.c <= 0 || item.h < item.l || item.o < item.l || item.c < item.l) {
+            console.warn(`[DEBUG] Dados de candlestick inválidos na posição ${index}:`, item);
+          }
+        });
 
         // Calcular EMAs e RSI
         console.log('[DEBUG] Calculando EMAs e RSI');
-        const closes = weeklyData.historical.map(item => item.close).reverse();
+        const closes = weeklyData.historical.map(item => parseFloat(item.close)).filter(c => !isNaN(c)).reverse();
         if (closes.length < 50) {
           console.warn('[DEBUG] Dados insuficientes para EMAs completas:', closes.length);
         }
@@ -374,14 +404,14 @@
         // Calcular suportes/resistências (diário)
         console.log('[DEBUG] Calculando níveis Fibonacci');
         const latestDaily = dailyData.historical[0];
-        if (!latestDaily.high || !latestDaily.low || !latestDaily.close) {
+        if (!latestDaily || isNaN(latestDaily.high) || isNaN(latestDaily.low) || isNaN(latestDaily.close)) {
           console.error('[DEBUG] Dados diários inválidos:', latestDaily);
-          throw new Error('Dados diários incompletos');
+          throw new Error(i18next.t('invalidChartData'));
         }
         const fibLevels = calculateFibonacciLevels(
-          [latestDaily.high],
-          [latestDaily.low],
-          [latestDaily.close]
+          [parseFloat(latestDaily.high)],
+          [parseFloat(latestDaily.low)],
+          [parseFloat(latestDaily.close)]
         );
         console.log('[DEBUG] Níveis Fibonacci:', fibLevels);
 
@@ -400,13 +430,38 @@
           type: 'candlestick',
           data: {
             datasets: [
-              { label: `${symbol} - Semanal`, data: chartData },
-              { label: 'EMA 7', data: ema7.map((y, i) => ({ x: chartData[i]?.x, y })), type: 'line', borderColor: 'blue' },
-              { label: 'EMA 21', data: ema21.map((y, i) => ({ x: chartData[i]?.x, y })), type: 'line', borderColor: 'green' },
-              { label: 'EMA 50', data: ema50.map((y, i) => ({ x: chartData[i]?.x, y })), type: 'line', borderColor: 'red' }
+              {
+                label: `${symbol} - Semanal`,
+                data: chartData,
+                borderColor: 'black',
+                backgroundColor: chartData.map(d => d.o <= d.c ? 'green' : 'red')
+              },
+              {
+                label: 'EMA 7',
+                data: ema7.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
+                type: 'line',
+                borderColor: 'blue',
+                fill: false
+              },
+              {
+                label: 'EMA 21',
+                data: ema21.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
+                type: 'line',
+                borderColor: 'green',
+                fill: false
+              },
+              {
+                label: 'EMA 50',
+                data: ema50.map((y, i) => ({ x: chartData[i]?.x, y: isNaN(y) ? null : y })),
+                type: 'line',
+                borderColor: 'red',
+                fill: false
+              }
             ]
           },
           options: {
+            responsive: true,
+            maintainAspectRatio: false,
             scales: {
               x: {
                 type: 'time',
@@ -417,24 +472,76 @@
                   }
                 }
               },
-              y: { beginAtZero: false }
+              y: {
+                beginAtZero: false,
+                title: { display: true, text: i18next.t('price') }
+              }
             },
             plugins: {
               annotation: {
                 annotations: {
-                  rsiOverbought: { type: 'line', yMin: 70, yMax: 70, borderColor: 'red', borderWidth: 1, label: { content: 'Sobrecompra (70)', enabled: true } },
-                  rsiOversold: { type: 'line', yMin: 30, yMax: 30, borderColor: 'green', borderWidth: 1, label: { content: 'Sobrevenda (30)', enabled: true } },
-                  support1: { type: 'line', yMin: fibLevels.support1, yMax: fibLevels.support1, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 1', enabled: true } },
-                  support2: { type: 'line', yMin: fibLevels.support2, yMax: fibLevels.support2, borderColor: 'purple', borderWidth: 1, label: { content: 'Suporte 2', enabled: true } },
-                  resistance1: { type: 'line', yMin: fibLevels.resistance1, yMax: fibLevels.resistance1, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 1', enabled: true } },
-                  resistance2: { type: 'line', yMin: fibLevels.resistance2, yMax: fibLevels.resistance2, borderColor: 'orange', borderWidth: 1, label: { content: 'Resistência 2', enabled: true } },
-                  pivot: { type: 'line', yMin: fibLevels.pivot, yMax: fibLevels.pivot, borderColor: 'black', borderWidth: 1, label: { content: 'Pivô', enabled: true } }
+                  rsiOverbought: {
+                    type: 'line',
+                    yMin: 70,
+                    yMax: 70,
+                    borderColor: 'red',
+                    borderWidth: 1,
+                    label: { content: 'Sobrecompra (70)', enabled: true }
+                  },
+                  rsiOversold: {
+                    type: 'line',
+                    yMin: 30,
+                    yMax: 30,
+                    borderColor: 'green',
+                    borderWidth: 1,
+                    label: { content: 'Sobrevenda (30)', enabled: true }
+                  },
+                  support1: {
+                    type: 'line',
+                    yMin: fibLevels.support1,
+                    yMax: fibLevels.support1,
+                    borderColor: 'purple',
+                    borderWidth: 1,
+                    label: { content: 'Suporte 1', enabled: true }
+                  },
+                  support2: {
+                    type: 'line',
+                    yMin: fibLevels.support2,
+                    yMax: fibLevels.support2,
+                    borderColor: 'purple',
+                    borderWidth: 1,
+                    label: { content: 'Suporte 2', enabled: true }
+                  },
+                  resistance1: {
+                    type: 'line',
+                    yMin: fibLevels.resistance1,
+                    yMax: fibLevels.resistance1,
+                    borderColor: 'orange',
+                    borderWidth: 1,
+                    label: { content: 'Resistência 1', enabled: true }
+                  },
+                  resistance2: {
+                    type: 'line',
+                    yMin: fibLevels.resistance2,
+                    yMax: fibLevels.resistance2,
+                    borderColor: 'orange',
+                    borderWidth: 1,
+                    label: { content: 'Resistência 2', enabled: true }
+                  },
+                  pivot: {
+                    type: 'line',
+                    yMin: fibLevels.pivot,
+                    yMax: fibLevels.pivot,
+                    borderColor: 'black',
+                    borderWidth: 1,
+                    label: { content: 'Pivô', enabled: true }
+                  }
                 }
               }
             }
           }
         });
-        console.log('[DEBUG] Gráfico criado com sucesso');
+        console.log('[DEBUG] Gráfico criado com sucesso:', stockChart);
 
         // Atualizar tabela
         console.log('[DEBUG] Atualizando tabela');
@@ -465,7 +572,7 @@
         symbol: currentSymbol,
         investingRating: document.getElementById('investingRating').value,
         tradingviewRating: document.getElementById('tradingviewRating').value,
-        price: stockChart?.data.datasets[0].data[0].c || 0,
+        price: stockChart?.data.datasets[0].data[0]?.c || 0,
         timestamp: new Date().toISOString()
       };
       try {
@@ -528,7 +635,7 @@
     // Comparar preço
     function comparePrice(savedPrice) {
       console.log('[DEBUG] Comparando preços:', { savedPrice });
-      const currentPrice = stockChart?.data.datasets[0].data[0].c || savedPrice;
+      const currentPrice = stockChart?.data.datasets[0].data[0]?.c || savedPrice;
       const variation = ((currentPrice - savedPrice) / savedPrice * 100).toFixed(2);
       alert(i18next.t('priceComparison') + `: ${variation}%`);
     }
